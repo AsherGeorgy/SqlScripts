@@ -1,7 +1,12 @@
 -- Notes
--- 1. Most large numbers are in Bigint. Integer division will return zero if the denominator is larger. Therefore CAST either to decimals where required.
--- 2. The total cases and total deaths columns (as the names suggest) are cumulative totals, not each day's number.
--- 3. The location column includes regions divided based on continent and wealth. Their corresponding location columns are empty.
+-- 1. Most large numbers are stored as Bigint. Integer division may return zero if the denominator is larger. 
+--    Therefore, CAST to decimals where required.
+-- 2. The `total_cases` and `total_deaths` columns are cumulative totals, not daily values.
+-- 3. The `location` column includes regions based on continent and wealth, but their corresponding location columns are empty.
+-- 4. There is no built-in SQL syntax to directly select all columns except specific ones.
+
+
+
 
 -- View the country data excluding regions
 SELECT *
@@ -9,8 +14,11 @@ FROM dbo.CovidDeaths
 WHERE continent <> ' '
 ORDER BY 3, 4;
 
+
+
+
 -- India
----- Calculate death rates
+-- Calculate death rates for India
 SELECT 
     location, 
     date, 
@@ -22,7 +30,7 @@ FROM [dbo].[CovidDeaths]
 WHERE location = 'India' 
 ORDER BY 3;
 
----- Calculate infection rates
+-- Calculate infection rates for India
 SELECT 
     date, 
     population, 
@@ -33,8 +41,11 @@ FROM [dbo].[CovidDeaths]
 WHERE location = 'India'
 ORDER BY date;
 
+
+
+
 -- Global
----- Top countries in terms of infection rate per capita
+-- Top countries in terms of infection rate per capita
 SELECT 
     location, 
     population, 
@@ -45,7 +56,7 @@ WHERE continent <> ' '
 GROUP BY location, population
 ORDER BY 4 DESC;
 
----- Top countries in terms of death rate per capita
+-- Top countries in terms of death rate per capita
 SELECT 
     location, 
     population, 
@@ -56,7 +67,7 @@ WHERE continent <> ' '
 GROUP BY location, population
 ORDER BY 4 DESC;
 
----- Top countries in terms of number of deaths 
+-- Top countries in terms of number of deaths
 SELECT 
     location, 
     MAX(total_deaths) AS Total_Deaths
@@ -65,7 +76,7 @@ WHERE continent <> ' '
 GROUP BY location
 ORDER BY Total_Deaths DESC;
 
------ Top continents in terms of number of deaths
+-- Top continents in terms of number of deaths
 SELECT 
     continent, 
     MAX(total_deaths) AS Total_Deaths
@@ -74,7 +85,7 @@ WHERE continent <> ' '
 GROUP BY continent
 ORDER BY Total_Deaths DESC;
 
----- Total cases, total deaths, and death percentage 
+-- Total cases, total deaths, and death percentage globally
 SELECT 
     SUM(new_cases) AS total_cases, 
     SUM(new_deaths) AS total_deaths, 
@@ -82,8 +93,11 @@ SELECT
 FROM dbo.CovidDeaths
 WHERE continent <> ' ';
 
--- Notes
--- 1. There’s no built-in SQL syntax to directly select all columns except specific ones.
+
+
+
+
+
 
 -- Cumulative total number of vaccinations by country using PARTITION BY
 SELECT 
@@ -100,10 +114,14 @@ JOIN dbo.CovidVaccinations vac
 WHERE dea.continent <> '' 
 ORDER BY 2, 3;
 
--- Cumulative percentage population vaccinated (assuming one dose per person)
--- Can't be done directly as cumulative total number of vaccinations column doesn't exist and needs to be added.
--- Can be done only by adding the previous table to a CTE or TEMP TABLE
----- 1. CTE
+
+
+
+-- Cumulative percentage of population vaccinated (assuming one dose per person)
+-- This calculation requires adding the cumulative total of vaccinations. 
+-- This can be achieved either through a CTE or by using a TEMP TABLE.
+
+-- 1. CTE (Common Table Expression)
 WITH PopVsVac AS 
 (
     SELECT 
@@ -119,15 +137,18 @@ WITH PopVsVac AS
         AND dea.date = vac.date
     WHERE dea.continent <> '' 
 )
--- The above CTE, PopVsVac, aggregates vaccination data, providing total vaccinations to date per location alongside population data.
--- It is created to allow referencing the 'total_vaccinations_To_Date' column in the following query.
+-- The above CTE, `PopVsVac`, aggregates vaccination data, providing the total vaccinations per location to date.
+-- It is created to allow referencing the `total_vaccinations_To_Date` column in the following query.
 
 SELECT *, 
        (Total_Vaccinations_To_Date / CAST(population AS decimal(11, 1))) * 100 AS Pct_Vaccinated_To_Date
 FROM PopVsVac;
 
----- 2. TEMP TABLE
-DROP TABLE IF EXISTS #PercentPopulationVaccinated;  -- In order to facilitate alterations
+
+
+
+-- 2. TEMP TABLE (alternative method)
+DROP TABLE IF EXISTS #PercentPopulationVaccinated;  -- Drop existing table if it exists
 CREATE TABLE #PercentPopulationVaccinated
 (
     Continent nvarchar(255),
@@ -138,6 +159,7 @@ CREATE TABLE #PercentPopulationVaccinated
     Total_Vaccinations_To_Date numeric
 );
 
+-- Insert aggregated data into the temporary table
 INSERT INTO #PercentPopulationVaccinated
 SELECT 
     dea.continent, 
@@ -152,12 +174,18 @@ JOIN dbo.CovidVaccinations vac
     AND dea.date = vac.date
 WHERE dea.continent <> '';
 
-SELECT *,
+-- Query the temporary table to calculate the percentage of vaccinated population
+SELECT * ,
        (Total_Vaccinations_To_Date / CAST(population AS decimal(11, 1))) * 100 AS Pct_Vaccinated_To_Date
 FROM #PercentPopulationVaccinated;
 
--- Creating views 
+
+
+
+-- Creating views for vaccination data aggregation
 GO  -- Batch separator
+
+-- Create view for cumulative vaccination data by location
 CREATE VIEW PercentPopulationVaccinated AS
 SELECT 
     dea.continent, 
